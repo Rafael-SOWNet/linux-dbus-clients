@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AvahiDbus/AvahiDbus.csproj" />
+    <Project Path="src/ModemManagerDbus/ModemManagerDbus.csproj" />
+    <Project Path="src/NetworkManagerDbus/NetworkManagerDbus.csproj" />
+  </Folder>
+</Solution>

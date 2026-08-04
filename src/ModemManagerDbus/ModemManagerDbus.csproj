@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Dbus.Clients.ModemManager</PackageId>
+    <Description>A .NET client for ModemManager's D-Bus API, covering the full interface set: Modem, Modem3gpp, ModemCdma, Simple, Signal, Location, Time, Firmware, Voice/Call, Messaging/SMS, USSD, OMA, Bearer and SIM — with the ModemManager enumerations and structured types translated into idiomatic C#.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tmds.DBus" Version="0.92.0" />
+  </ItemGroup>
+
+</Project>

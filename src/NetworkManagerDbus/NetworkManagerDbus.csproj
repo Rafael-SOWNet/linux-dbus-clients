@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Dbus.Clients.NetworkManager</PackageId>
+    <Description>A .NET client for NetworkManager's D-Bus API. Beyond raw proxies it provides a typed connection-settings model and builders for the profiles embedded Linux devices actually need: ethernet with DHCP, static or link-local addressing (including an auto-connecting link-local fallback profile for direct-cable access), and Wi-Fi in either station or access-point mode.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tmds.DBus" Version="0.92.0" />
+  </ItemGroup>
+
+</Project>

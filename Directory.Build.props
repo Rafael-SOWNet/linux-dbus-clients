@@ -1,0 +1,54 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors>CS8600;CS8602;CS8603;CS8618;CS8625</WarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      The proxy interfaces mirror D-Bus contracts rather than being an API surface we document
+      member by member, and the prose comments deliberately explain the parameters that are
+      surprising instead of listing every one. CS1591 = missing doc, CS1573 = partially documented.
+    -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    These bind Linux system daemons. They build anywhere (useful for CI on windows-latest and for
+    editor tooling), but they only do anything on a machine with a D-Bus system bus.
+  -->
+  <PropertyGroup>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package metadata">
+    <Authors>Rafael Vuijk</Authors>
+    <Product>Linux D-Bus Clients for .NET</Product>
+    <Copyright>Copyright (c) Rafael Vuijk</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Rafael-SOWNet/linux-dbus-clients</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Rafael-SOWNet/linux-dbus-clients</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>dbus;linux;networkmanager;modemmanager;avahi;mdns;dns-sd;zeroconf;embedded</PackageTags>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- Set by CI from the git tag; 0.1.0-dev locally. -->
+    <Version Condition="'$(Version)'==''">0.1.0-dev</Version>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)'!='false'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

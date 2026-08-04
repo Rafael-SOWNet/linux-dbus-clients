@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Dbus.Clients.Avahi</PackageId>
+    <Description>A .NET client for avahi's D-Bus API: publish DNS-SD/mDNS (Bonjour/Zeroconf) services at runtime, with the TXT records and port known only to the running process. Handles the two things a static /etc/avahi/services file cannot: reading back the host name avahi actually published after a collision, and noticing that avahi-daemon restarted and silently dropped your record.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tmds.DBus" Version="0.92.0" />
+  </ItemGroup>
+
+</Project>

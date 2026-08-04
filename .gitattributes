@@ -1,0 +1,12 @@
+* text=auto
+
+# Pin line endings explicitly so an editor or tool rewriting a file cannot turn a two-line
+# change into a whole-file diff.
+*.cs        text eol=lf
+*.csproj    text eol=lf
+*.props     text eol=lf
+*.targets   text eol=lf
+*.sln       text eol=crlf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.json      text eol=lf
