@@ -26,7 +26,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - run: dotnet restore
-      - run: dotnet build -c Release --no-restore -warnaserror
+      - run: dotnet build -c Release --no-restore -warnaserror -p:ContinuousIntegrationBuild=true
 
   pack:
     needs: build
@@ -49,7 +49,7 @@ jobs:
             echo "value=0.1.0-ci.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
 
-      - run: dotnet pack -c Release -o ./artifacts -p:Version=${{ steps.version.outputs.value }}
+      - run: dotnet pack -c Release -o ./artifacts -p:ContinuousIntegrationBuild=true -p:Version=${{ steps.version.outputs.value }}
 
       - uses: actions/upload-artifact@v5
         with:

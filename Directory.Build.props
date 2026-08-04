@@ -47,7 +47,18 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!--
+    SourceLink only matters for the packages CI publishes, so it is opt-in via
+    ContinuousIntegrationBuild (which the workflow passes explicitly) rather than always on.
+
+    Keeping it unconditional caused real trouble: these projects are also consumed as a git
+    submodule of a downstream repository, cloned from a mirror on a different, self-hosted git
+    host. Microsoft.SourceLink.GitHub does not recognise that host, so every downstream build
+    emitted "Source control information is not available" once per project. Registering the
+    mirror's host here would fix the warning but would hard-code a private hostname into a
+    public repository, which §8 forbids. Scoping SourceLink to CI solves both.
+  -->
+  <ItemGroup Condition="'$(ContinuousIntegrationBuild)'=='true'">
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
