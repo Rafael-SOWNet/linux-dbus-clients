@@ -55,6 +55,14 @@ public static class WifiProfileFactory
         if (string.IsNullOrWhiteSpace(request.Ssid))
             throw new ArgumentException("Ssid is required.", nameof(request));
 
+        // An open access point is not an allowed configuration. Both AP variants put the
+        // device on the network edge - hotspot serves its own DHCP/NAT subnet, and the
+        // bridge variant puts associated clients straight onto the wired segment - so an
+        // unauthenticated AP exposes every service reachable through the host firewall to
+        // anyone in radio range. Previously a blank key silently produced WifiSecurity =
+        // null, i.e. an open AP, with no error anywhere.
+        var preSharedKey = BuildAccessPointSecurity(request.PreSharedKey);
+
         if (!string.IsNullOrWhiteSpace(request.BridgeMasterConnectionUuid))
         {
             return new NetworkConfigurationDto
@@ -75,11 +83,7 @@ public static class WifiProfileFactory
                     Channel = request.Channel,
                     ClonedMacAddress = request.Bssid,
                 },
-                WifiSecurity = string.IsNullOrWhiteSpace(request.PreSharedKey) ? null : new WifiSecurityDto
-                {
-                    PreSharedKey = request.PreSharedKey,
-                    KeyManagement = "sae",
-                },
+                WifiSecurity = preSharedKey,
                 MasterConnectionUuid = request.BridgeMasterConnectionUuid,
                 SlaveType = "bridge",
                 Ipv4 = new IpConfigurationDto
@@ -113,11 +117,7 @@ public static class WifiProfileFactory
                 Channel = request.Channel,
                 ClonedMacAddress = request.Bssid,
             },
-            WifiSecurity = string.IsNullOrWhiteSpace(request.PreSharedKey) ? null : new WifiSecurityDto
-            {
-                PreSharedKey = request.PreSharedKey,
-                KeyManagement = "sae",
-            },
+            WifiSecurity = preSharedKey,
             Ipv4 = new IpConfigurationDto
             {
                 Enabled = true,
@@ -126,6 +126,32 @@ public static class WifiProfileFactory
             Ipv6 = request.EnableIpv6
                 ? new IpConfigurationDto { Enabled = true, Method = IpMethod.Auto }
                 : new IpConfigurationDto { Enabled = false, Method = IpMethod.Ignore },
+        };
+    }
+
+    /// <summary>
+    /// Builds the WPA3-SAE security block for an access point, rejecting anything that would
+    /// result in an open (unencrypted) AP. The length bounds are the SAE/WPA-PSK passphrase
+    /// limits - NetworkManager would reject an out-of-range key too, but only after the
+    /// profile round-trips over D-Bus, which surfaces as an opaque failure instead of a
+    /// message the operator can act on.
+    /// </summary>
+    private static WifiSecurityDto BuildAccessPointSecurity(string? preSharedKey)
+    {
+        if (string.IsNullOrWhiteSpace(preSharedKey))
+            throw new ArgumentException(
+                "A pre-shared key is required for access-point and hotspot mode; an open access point is not allowed.",
+                nameof(preSharedKey));
+
+        if (preSharedKey.Length is < 8 or > 63)
+            throw new ArgumentException(
+                "The access-point pre-shared key must be between 8 and 63 characters.",
+                nameof(preSharedKey));
+
+        return new WifiSecurityDto
+        {
+            PreSharedKey = preSharedKey,
+            KeyManagement = "sae",
         };
     }
 }
