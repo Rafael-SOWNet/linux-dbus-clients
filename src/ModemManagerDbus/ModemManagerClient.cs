@@ -21,10 +21,30 @@ public sealed class ModemManagerClient : IAsyncDisposable
         _objectManager = connection.CreateProxy<IObjectManager>(MmConstants.ModemManagerInterface, MmConstants.ModemManagerObjectPath);
     }
 
+    /// <summary>Connects to the system bus and returns a client owning that connection.</summary>
+    /// <remarks>
+    /// The connection is disposed if connecting fails. Until it reaches the client nothing else
+    /// can release it — the caller receives an exception rather than an object — so a connection
+    /// leaked here is unreachable for the rest of the process's life.
+    ///
+    /// That matters most precisely when this is most likely to fail: a bus refuses a UID that has
+    /// reached <c>max_connections_per_user</c> (256 by default), so a process near the ceiling
+    /// throws on every further attempt, and each of those would otherwise leak one more and push
+    /// it further past the limit.
+    /// </remarks>
     public static async Task<ModemManagerClient> CreateAsync(CancellationToken cancellationToken = default)
     {
         var connection = new Connection(Address.System);
-        await connection.ConnectAsync().WaitAsync(cancellationToken);
+        try
+        {
+            await connection.ConnectAsync().WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
+
         return new ModemManagerClient(connection);
     }
 

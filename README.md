@@ -147,8 +147,16 @@ policy in the daemon config only — implementing it in both places guarantees t
 when it is actually a gap.
 
 **A D-Bus connection is not free to leak.** All three clients are `IAsyncDisposable` and own
-their `Connection`. If you create one per retry in a startup loop, you leak a socket and a
-reader task per attempt. Create once, keep it, dispose on shutdown.
+their `Connection`. If you create one per retry in a startup loop — or one per tick in a status
+poller — you leak a socket and a reader task per attempt. Create once, keep it, dispose on
+shutdown.
+
+**Leaking them takes down the whole process, not just your client.** A bus caps one UID at
+`max_connections_per_user`, 256 by default. Cross it and *every* D-Bus consumer in the process
+starts failing with "The maximum number of active connections for UID … has been reached" —
+including clients that were never involved in the leak — and nothing recovers until the process
+restarts. A once-per-second poller reaches that ceiling in about four minutes, so this shows up
+as a service that works after a restart and mysteriously stops a few minutes later.
 
 ## Platform
 

@@ -201,8 +201,16 @@ policy in one place is the point; implementing it in both guarantees drift.
 "present but empty" from "absent", and an empty field reads as real data when it's a gap.
 
 **A D-Bus connection is not free to leak.** All clients are `IAsyncDisposable` and own their
-`Connection`. Creating one per attempt in a retry loop leaks a socket and a reader task per
-attempt. Create once, keep it, dispose on shutdown.
+`Connection`. Creating one per attempt in a retry loop — or per tick in a poller — leaks a socket
+and a reader task per attempt. Create once, keep it, dispose on shutdown.
+
+The blast radius is the reason this is in this list rather than being a mere resource nit: a bus
+caps one UID at `max_connections_per_user` (256 by default), and crossing it takes the bus away
+from **every** D-Bus consumer in the process, including ones that never leaked anything. Nothing
+recovers short of a process restart. A once-per-second poller gets there in about four minutes,
+which presents as a service that is healthy after a restart and dead a few minutes later. This is
+also why `CreateAsync` disposes its `Connection` when connecting fails: near the ceiling, connect
+attempts are exactly what throws, and a leak on that path feeds itself.
 
 **Link-local fallback is a second profile, not a flag.** `AddLinkLocalFallbackProfile` adds a
 separate `<id>-ll` connection at a lower `autoconnect-priority` (default −100 vs +100), so
