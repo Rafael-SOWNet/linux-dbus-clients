@@ -112,6 +112,18 @@ public static class ConnectionSettingsBuilder
             section["group"] = new[] { "ccmp" };
         }
 
+        // Deliberately NOT forcing pmf for AP-mode "wpa-psk" (WPA2/WPA3-Personal transition):
+        // on hardware whose driver doesn't support SAE in AP mode (confirmed on gme-800/
+        // 192.168.0.158's onboard brcmfmac, 2026-08-26 - NetworkManager itself dropped SAE from
+        // the negotiated AKM list down to plain "WPA-PSK WPA-PSK-SHA256" regardless of what pmf
+        // was set to), an explicit pmf=1 was tried and suspected of causing a phone (Galaxy A53
+        // 5G, Android 16) to reject the AP with a generic "Incorrect password" - but the real
+        // cause turned out to be the board's own power supply browning out under the AP's extra
+        // draw (repeated "Undervoltage detected!" in dmesg during every connection attempt), not
+        // the pmf/AKM combination. Left unset regardless: on this hardware it makes no
+        // observable difference (SAE isn't offered either way), and leaving it out is one fewer
+        // thing to reason about. NetworkManager is still free to add SAE on top on hardware that
+        // actually supports it, since nothing here prevents that.
         return section;
     }
 

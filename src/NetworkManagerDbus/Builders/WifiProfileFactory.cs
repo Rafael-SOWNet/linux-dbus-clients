@@ -130,11 +130,22 @@ public static class WifiProfileFactory
     }
 
     /// <summary>
-    /// Builds the WPA3-SAE security block for an access point, rejecting anything that would
-    /// result in an open (unencrypted) AP. The length bounds are the SAE/WPA-PSK passphrase
-    /// limits - NetworkManager would reject an out-of-range key too, but only after the
-    /// profile round-trips over D-Bus, which surfaces as an opaque failure instead of a
-    /// message the operator can act on.
+    /// Builds the security block for an access point, rejecting anything that would result in
+    /// an open (unencrypted) AP. The length bounds are the SAE/WPA-PSK passphrase limits -
+    /// NetworkManager would reject an out-of-range key too, but only after the profile
+    /// round-trips over D-Bus, which surfaces as an opaque failure instead of a message the
+    /// operator can act on.
+    ///
+    /// key-mgmt is "wpa-psk", not "sae": in AP mode NetworkManager treats "wpa-psk" as the
+    /// WPA2/WPA3-Personal *transition* setting (it advertises both PSK and SAE AKMs, "WPA-PSK
+    /// WPA-PSK-SHA256 SAE"), not WPA2-only - "sae" alone means WPA3-only, no fallback. A
+    /// SAE-only hotspot failed to associate with a real phone (Galaxy A53 5G / Android 16,
+    /// which does support WPA3) with a generic "Incorrect password" - confirmed the AP side had
+    /// no errors (activated, correct PSK, no NetworkManager log failures), consistent with the
+    /// known brcmfmac limitation where the Pi's onboard Wi-Fi can't complete a SAE handshake in
+    /// AP mode even though it advertises support. Transition mode lets a WPA3-capable client use
+    /// SAE when it works and falls back to plain WPA2-PSK (a completely different, unaffected
+    /// code path) when it doesn't.
     /// </summary>
     private static WifiSecurityDto BuildAccessPointSecurity(string? preSharedKey)
     {
@@ -151,7 +162,7 @@ public static class WifiProfileFactory
         return new WifiSecurityDto
         {
             PreSharedKey = preSharedKey,
-            KeyManagement = "sae",
+            KeyManagement = "wpa-psk",
         };
     }
 }
