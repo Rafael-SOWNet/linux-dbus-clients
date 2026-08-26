@@ -91,16 +91,22 @@ public static class ConnectionSettingsBuilder
             ["psk"] = security.PreSharedKey,
         };
 
-        // WPA3-SAE requires Protected Management Frames (pmf=2), and - unlike wpa-psk, which
+        // WPA3-SAE requires Protected Management Frames, and - unlike wpa-psk, which
         // NetworkManager can infer a cipher suite for on its own - needs proto/pairwise/group
         // spelled out explicitly. Without them wpa_supplicant has nothing to build an RSN IE
         // from and access-point activation fails with "Could not generate WPA IE" / "WPA
         // initialization failed", entirely silently as far as the caller of this builder is
         // concerned (confirmed live on gme-800/192.168.0.158, 2026-08-25, via mac80211_hwsim -
         // the first time wifi-ap-bridge mode was ever actually driven to a real AP association).
+        //
+        // pmf must be 3 (required), not 2 (optional): NetworkManager's Settings D-Bus API
+        // rejects pmf=2 outright for sae/owe/wpa-eap-suite-b-192 key management with
+        // "pmf can only be 'default' or 'required'" - caught live via the actual Network
+        // Settings page (not nmcli, which had silently been given the correct value by hand
+        // during the mac80211_hwsim testing above and never exercised this code path).
         if (string.Equals(keyMgmt, "sae", StringComparison.OrdinalIgnoreCase))
         {
-            section["pmf"] = 2;
+            section["pmf"] = 3;
             section["proto"] = new[] { "rsn" };
             section["pairwise"] = new[] { "ccmp" };
             section["group"] = new[] { "ccmp" };
