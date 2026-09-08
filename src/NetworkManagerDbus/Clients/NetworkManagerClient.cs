@@ -1,4 +1,4 @@
-﻿using NetworkManagerDbus.Builders;
+using NetworkManagerDbus.Builders;
 using NetworkManagerDbus.Dbus;
 using NetworkManagerDbus.Dto;
 using NetworkManagerDbus.Mappers;
@@ -50,6 +50,53 @@ public sealed class NetworkManagerClient : IAsyncDisposable
     {
         _connection.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// UUIDs of every currently activated or activating connection.
+    ///
+    /// Exists so a caller can avoid rewriting a profile that NetworkManager is in the middle of
+    /// bringing up. Updating a connection during its own activation makes NetworkManager abandon
+    /// the attempt with "The connection was modified since activation", reported as reason
+    /// no-secrets - which is terminal, so autoconnect never retries and the interface simply stays
+    /// down. Observed on gme-merge 2026-09-08, where saving Wi-Fi client settings activated the
+    /// profile and then rewrote it, leaving wlan0 disconnected with a correct PSK on disk.
+    ///
+    /// A connection that disappears mid-enumeration is skipped rather than throwing: the list is a
+    /// snapshot of a live daemon, and any caller is racing it by definition.
+    /// </summary>
+    public async Task<IReadOnlySet<string>> ListActiveConnectionUuidsAsync(CancellationToken cancellationToken = default)
+    {
+        var uuids = new HashSet<string>(StringComparer.Ordinal);
+
+        ObjectPath[] paths;
+        try
+        {
+            paths = await _networkManager.GetAsync<ObjectPath[]>("ActiveConnections").WaitAsync(cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return uuids;
+        }
+
+        foreach (var path in paths)
+        {
+            try
+            {
+                var proxy = _connection.CreateProxy<INetworkManagerActiveConnectionProxy>(
+                    NmConstants.NetworkManagerService, path);
+                var uuid = await proxy.GetAsync<string>("Uuid").WaitAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(uuid))
+                    uuids.Add(uuid);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Deactivated between the listing and the read. Not active any more, so skipping it
+                // is the correct answer rather than a lost result.
+            }
+        }
+
+        return uuids;
     }
 
     public async Task<IReadOnlyList<ConnectionSummaryDto>> ListConnectionSummariesAsync(CancellationToken cancellationToken = default)

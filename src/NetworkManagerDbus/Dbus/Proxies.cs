@@ -1,4 +1,4 @@
-﻿using Tmds.DBus;
+using Tmds.DBus;
 
 namespace NetworkManagerDbus.Dbus;
 
@@ -49,6 +49,12 @@ public interface INetworkManagerSettingsProxy : IDBusObject
 {
     Task<ObjectPath[]> ListConnectionsAsync();
     Task<ObjectPath> AddConnectionAsync(IDictionary<string, IDictionary<string, object>> connection);
+}
+
+[DBusInterface(NmConstants.NetworkManagerActiveConnectionInterface)]
+public interface INetworkManagerActiveConnectionProxy : IDBusObject
+{
+    Task<T> GetAsync<T>(string prop);
 }
 
 [DBusInterface(NmConstants.NetworkManagerConnectionInterface)]
