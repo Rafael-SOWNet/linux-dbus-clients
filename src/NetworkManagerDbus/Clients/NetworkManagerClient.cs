@@ -327,20 +327,86 @@ public sealed class NetworkManagerClient : IAsyncDisposable
         };
     }
 
-    public async Task<NetworkConfigurationDto> GetConnectionConfigurationAsync(ObjectPath connectionPath, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Setting groups whose secrets this client models on <see cref="NetworkConfigurationDto"/>.
+    /// Anything not listed here has no secret field to lose.
+    /// </summary>
+    private static readonly string[] SecretBearingSettings = ["802-11-wireless-security", "gsm"];
+
+    /// <param name="includeSecrets">
+    /// Merge secrets into the result. Required whenever the result will be written back with
+    /// <see cref="UpdateConnectionAsync"/> or <see cref="UpsertConnectionAsync"/> - see the remarks
+    /// on the overload below.
+    /// </param>
+    public async Task<NetworkConfigurationDto> GetConnectionConfigurationAsync(ObjectPath connectionPath, bool includeSecrets, CancellationToken cancellationToken = default)
     {
         var proxy = _connection.CreateProxy<INetworkManagerConnectionProxy>(NmConstants.NetworkManagerService, connectionPath);
         var settings = await proxy.GetSettingsAsync().WaitAsync(cancellationToken);
+
+        if (includeSecrets)
+            settings = await MergeSecretsAsync(proxy, settings, cancellationToken);
+
         return ConnectionSettingsMapper.Map(settings);
     }
 
-    public async Task<NetworkConfigurationDto?> GetConnectionConfigurationByIdAsync(string connectionId, CancellationToken cancellationToken = default)
+    public Task<NetworkConfigurationDto> GetConnectionConfigurationAsync(ObjectPath connectionPath, CancellationToken cancellationToken = default)
+        => GetConnectionConfigurationAsync(connectionPath, includeSecrets: false, cancellationToken);
+
+    /// <remarks>
+    /// A read-modify-write cycle MUST pass <paramref name="includeSecrets"/> = true. NetworkManager
+    /// omits secrets from GetSettings and its Update replaces the whole connection, so reading
+    /// without secrets and writing back deletes them. For a Wi-Fi access point that turns a
+    /// WPA2-protected AP into an open one - observed live on gme-merge on 2026-09-08, where
+    /// flipping autoconnect on an unrelated profile stripped key-mgmt and psk from
+    /// "wifi-ap-bridge" and left it beaconing unauthenticated on a bridged interface.
+    /// </remarks>
+    public async Task<NetworkConfigurationDto?> GetConnectionConfigurationByIdAsync(string connectionId, bool includeSecrets, CancellationToken cancellationToken = default)
     {
         var path = await FindConnectionByIdAsync(connectionId, cancellationToken);
         if (path is null)
             return null;
 
-        return await GetConnectionConfigurationAsync(path.Value, cancellationToken);
+        return await GetConnectionConfigurationAsync(path.Value, includeSecrets, cancellationToken);
+    }
+
+    public Task<NetworkConfigurationDto?> GetConnectionConfigurationByIdAsync(string connectionId, CancellationToken cancellationToken = default)
+        => GetConnectionConfigurationByIdAsync(connectionId, includeSecrets: false, cancellationToken);
+
+    /// <summary>
+    /// Overlays each secret-bearing setting group's secrets onto the settings dictionary.
+    ///
+    /// A connection that carries no secrets, or whose secrets this agent may not read, answers with
+    /// an error or an empty dictionary; both are non-fatal and leave the group as GetSettings
+    /// returned it.
+    /// </summary>
+    private static async Task<IDictionary<string, IDictionary<string, object>>> MergeSecretsAsync(
+        INetworkManagerConnectionProxy proxy,
+        IDictionary<string, IDictionary<string, object>> settings,
+        CancellationToken cancellationToken)
+    {
+        foreach (var settingName in SecretBearingSettings)
+        {
+            if (!settings.ContainsKey(settingName))
+                continue;
+
+            IDictionary<string, IDictionary<string, object>>? secrets = null;
+            try
+            {
+                secrets = await proxy.GetSecretsAsync(settingName).WaitAsync(cancellationToken);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // No secrets stored, or not readable by this agent. Nothing to merge.
+            }
+
+            if (secrets is null || !secrets.TryGetValue(settingName, out var secretValues))
+                continue;
+
+            foreach (var (key, value) in secretValues)
+                settings[settingName][key] = value;
+        }
+
+        return settings;
     }
 
     public async Task<InterfaceRuntimeStateDto?> GetInterfaceRuntimeStateAsync(string interfaceName, CancellationToken cancellationToken = default)

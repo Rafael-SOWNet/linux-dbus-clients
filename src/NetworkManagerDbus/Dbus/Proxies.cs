@@ -55,6 +55,16 @@ public interface INetworkManagerSettingsProxy : IDBusObject
 public interface INetworkManagerConnectionProxy : IDBusObject
 {
     Task<IDictionary<string, IDictionary<string, object>>> GetSettingsAsync();
+
+    /// <summary>
+    /// Secrets for a single setting group, e.g. "802-11-wireless-security".
+    ///
+    /// <see cref="GetSettingsAsync"/> deliberately omits secrets, so on its own it cannot be used
+    /// to round-trip a connection: <see cref="UpdateAsync"/> replaces the connection wholesale, so
+    /// writing back settings that were read without secrets silently deletes them.
+    /// </summary>
+    Task<IDictionary<string, IDictionary<string, object>>> GetSecretsAsync(string settingName);
+
     Task UpdateAsync(IDictionary<string, IDictionary<string, object>> properties);
     Task DeleteAsync();
 }
