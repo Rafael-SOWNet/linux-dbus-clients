@@ -312,6 +312,56 @@ public sealed class NetworkManagerClient : IAsyncDisposable
         await _networkManager.ActivateConnectionAsync(connectionPath.Value, devicePath, new ObjectPath("/")).WaitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Brings down whatever is currently active for <paramref name="connectionId"/>, leaving the
+    /// profile itself on disk. Returns false when nothing was active under that id, so a caller can
+    /// tell "disconnected it" apart from "there was nothing to disconnect".
+    ///
+    /// This is what nmcli's `connection down` does, and it carries the same side effect: NetworkManager
+    /// marks the connection as manually deactivated and will not autoconnect it again on its own. That
+    /// is the point - a disconnect that reconnects a second later is not a disconnect - but it does mean
+    /// getting back on the network is a deliberate act (saving the settings reactivates it).
+    /// </summary>
+    public async Task<bool> DeactivateConnectionByIdAsync(string connectionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(connectionId))
+            return false;
+
+        ObjectPath[] paths;
+        try
+        {
+            paths = await _networkManager.GetAsync<ObjectPath[]>("ActiveConnections").WaitAsync(cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        foreach (var path in paths)
+        {
+            try
+            {
+                var proxy = _connection.CreateProxy<INetworkManagerActiveConnectionProxy>(
+                    NmConstants.NetworkManagerService, path);
+
+                var id = await proxy.GetAsync<string>("Id").WaitAsync(cancellationToken);
+                if (!string.Equals(id, connectionId, StringComparison.Ordinal))
+                    continue;
+
+                await _networkManager.DeactivateConnectionAsync(path).WaitAsync(cancellationToken);
+                return true;
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Went away between the listing and the call. Same reasoning as
+                // ListActiveConnectionUuidsAsync: it is not active any more, which is the
+                // outcome being asked for, so keep looking rather than failing the request.
+            }
+        }
+
+        return false;
+    }
+
     private async Task<ObjectPath?> FindDeviceByInterfaceAsync(string interfaceName, CancellationToken cancellationToken)
     {
         var devicePaths = await _networkManager.GetDevicesAsync().WaitAsync(cancellationToken);

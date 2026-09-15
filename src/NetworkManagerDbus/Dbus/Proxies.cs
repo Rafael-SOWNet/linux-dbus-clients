@@ -1,4 +1,4 @@
-using Tmds.DBus;
+﻿using Tmds.DBus;
 
 namespace NetworkManagerDbus.Dbus;
 
@@ -8,6 +8,7 @@ public interface INetworkManagerProxy : IDBusObject
     Task EnableAsync(bool enable);
     Task<ObjectPath[]> GetDevicesAsync();
     Task<ObjectPath> ActivateConnectionAsync(ObjectPath connection, ObjectPath device, ObjectPath specificObject);
+    Task DeactivateConnectionAsync(ObjectPath activeConnection);
     Task<T> GetAsync<T>(string prop);
     Task SetAsync(string prop, object value);
 }
