@@ -1,4 +1,4 @@
-using NetworkManagerDbus.Builders;
+﻿using NetworkManagerDbus.Builders;
 using NetworkManagerDbus.Dbus;
 using NetworkManagerDbus.Dto;
 using NetworkManagerDbus.Mappers;
@@ -219,16 +219,7 @@ public sealed class NetworkManagerClient : IAsyncDisposable
 
             var wireless = _connection.CreateProxy<INetworkManagerWirelessDeviceProxy>(NmConstants.NetworkManagerService, devicePath);
             if (requestScan)
-            {
-                try
-                {
-                    await wireless.RequestScanAsync(new Dictionary<string, object>()).WaitAsync(cancellationToken);
-                }
-                catch
-                {
-                    // Ignore scan request failures (e.g. scan cooldown); we still read current AP list.
-                }
-            }
+                await ScanAndWaitAsync(wireless, cancellationToken);
 
             var apPaths = await wireless.GetAsync<ObjectPath[]>("AccessPoints").WaitAsync(cancellationToken);
             foreach (var apPath in apPaths)
@@ -535,6 +526,77 @@ public sealed class NetworkManagerClient : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Overall budget for "request a scan and wait for its results". A scan on the Pi's onboard
+    /// radio normally lands well inside this; the cap exists so a wedged or absent radio degrades to
+    /// the old behaviour - returning whatever NetworkManager already has - instead of hanging the
+    /// HTTP request that asked for it.
+    /// </summary>
+    private static readonly TimeSpan WifiScanBudget = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan WifiScanPollInterval = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// Requests a Wi-Fi scan and waits for it to actually finish.
+    ///
+    /// Two separate things make the obvious "RequestScan, then read AccessPoints" wrong:
+    ///
+    /// 1. RequestScan only STARTS a scan. It returns as soon as NetworkManager accepts the request,
+    ///    so reading AccessPoints straight after returns the PREVIOUS cache. LastScan
+    ///    (CLOCK_BOOTTIME milliseconds, -1 when never scanned) changes when a scan COMPLETES, which
+    ///    is the signal actually worth waiting on.
+    ///
+    /// 2. Right after the radio is switched on, wlan0 is not yet in a state that accepts a scan and
+    ///    RequestScan throws. Swallowing that and reading the cache is why a scan taken immediately
+    ///    after re-enabling Wi-Fi reliably found nothing at all.
+    ///
+    /// So the request is retried until it is accepted, and the loop exits as soon as a scan
+    /// completes - both within one budget. A cooldown rejection ("scanning not allowed immediately
+    /// following previous scan") lands in the same retry path and resolves the same way.
+    /// </summary>
+    private static async Task ScanAndWaitAsync(INetworkManagerWirelessDeviceProxy wireless, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + WifiScanBudget;
+        var lastScanBefore = await TryGetLastScanAsync(wireless, cancellationToken);
+        var accepted = false;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (!accepted)
+            {
+                try
+                {
+                    await wireless.RequestScanAsync(new Dictionary<string, object>()).WaitAsync(cancellationToken);
+                    accepted = true;
+                }
+                catch
+                {
+                    // Device not ready yet, or a scan cooldown. Both resolve by waiting.
+                }
+            }
+
+            await Task.Delay(WifiScanPollInterval, cancellationToken);
+
+            var lastScan = await TryGetLastScanAsync(wireless, cancellationToken);
+
+            // -1 means "never scanned", so it is not a completion. Any other change is.
+            if (lastScan > 0 && lastScan != lastScanBefore)
+                return;
+        }
+    }
+
+    private static async Task<long> TryGetLastScanAsync(INetworkManagerWirelessDeviceProxy wireless, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await wireless.GetAsync<long>("LastScan").WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            // Older NetworkManager builds do not expose LastScan. Reporting "never scanned" makes
+            // the wait above fall through to its timeout, which is the previous behaviour.
+            return -1;
+        }
+    }
     private static bool IsRootPath(ObjectPath path)
         => string.Equals(path.ToString(), "/", StringComparison.Ordinal);
 
