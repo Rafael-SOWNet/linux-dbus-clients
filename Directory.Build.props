@@ -20,8 +20,27 @@
     These bind Linux system daemons. They build anywhere (useful for CI on windows-latest and for
     editor tooling), but they only do anything on a machine with a D-Bus system bus.
   -->
+  <!--
+    IsTrimmable is deliberately NOT set, even though these libraries are aimed at embedded
+    consumers that would like to trim.
+
+    Tmds.DBus builds its proxies reflectively: CreateProxy<IFooProxy> generates an implementation
+    at runtime from the interface's type and member names, and the [Dictionary] property classes
+    are populated by matching field names against D-Bus dictionary keys. Nothing in that chain is
+    visible to the trimmer as a use of those names, so a trimmed consumer can lose them and every
+    call then fails at runtime. IsTrimmable would advertise a guarantee this dependency cannot
+    honour.
+
+    Worse, it advertises it silently: Tmds.DBus 0.92.0 carries no RequiresUnreferencedCode
+    annotations on that path, so the trim analyzer has nothing to warn about and the claim looks
+    verified. The analyzer stays on below to catch anything that IS annotated, but a clean build
+    is not evidence these assemblies survive trimming.
+
+    Tmds.DBus.Protocol is documented as NativeAOT- and trim-compatible, and its source generator
+    emits proxies of the same shape as Dbus/Proxies.cs. Moving to it is the route to a trimmable
+    build; until then, do not re-add IsTrimmable.
+  -->
   <PropertyGroup>
-    <IsTrimmable>true</IsTrimmable>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
 

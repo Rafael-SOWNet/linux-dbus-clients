@@ -22,8 +22,11 @@ Package IDs intentionally differ from assembly names: assembly names stay short 
 stack traces, package IDs are namespaced enough to be unambiguous on nuget.org. Do not "fix"
 this by aligning them.
 
-Everything targets `net10.0`, `LangVersion=preview`, nullable enabled, `IsTrimmable=true`.
-The only runtime dependency is [Tmds.DBus](https://github.com/tmds/Tmds.DBus) 0.92.0.
+Everything targets `net10.0`, `LangVersion=preview`, nullable enabled. The only runtime dependency
+is [Tmds.DBus](https://github.com/tmds/Tmds.DBus) 0.92.0.
+
+**These assemblies are not trimmable**, and `IsTrimmable` is deliberately unset — see §8 and the
+comment in `Directory.Build.props` for why, and for what would have to change first.
 
 ---
 
@@ -277,8 +280,15 @@ in ways nobody documents. When you fix something that surprised you:
   `_http._tcp`, `eth0`). Check anything you write, and anything you paste in from elsewhere.
 - **No shared/common project between the three.** They are independent by design so a consumer
   can take one without the other two.
-- **No dependency beyond `Tmds.DBus`** without a strong reason. Consumers are frequently
-  embedded and trimmed; `IsTrimmable` is on and must stay satisfiable.
+- **No dependency beyond `Tmds.DBus`** without a strong reason. Consumers are frequently embedded
+  and would like to trim, so keep the dependency surface small enough that a trimmable build stays
+  reachable.
+- **Do not set `IsTrimmable`.** It was set until it was noticed that `Tmds.DBus`'s reflective
+  `CreateProxy<T>` cannot satisfy it, and that nothing warns when it doesn't — the trim analyzer
+  has no annotations to go on, so the claim reads as verified while a trimmed consumer breaks at
+  the first call. Re-adding it requires moving off the reflection-based API first
+  (`Tmds.DBus.Protocol` + its source generator), not just proving a build is clean. Full reasoning
+  in `Directory.Build.props`.
 - **Proxy interfaces stay faithful to the daemon's introspection XML.** Put convenience on the
   `*Client` classes instead.
 - **Treat the public surface as a contract.** These are published packages; follow semver and
