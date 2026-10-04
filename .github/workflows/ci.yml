@@ -28,6 +28,11 @@ jobs:
       - run: dotnet restore
       - run: dotnet build -c Release --no-restore -warnaserror -p:ContinuousIntegrationBuild=true
 
+      # The build step alone never executed a single test, so the suites compiled on every
+      # push and ran nowhere. Matching -c Release and --no-build to the step above keeps this
+      # to a test run rather than a second compile.
+      - run: dotnet test -c Release --no-build
+
   pack:
     needs: build
     runs-on: ubuntu-latest
