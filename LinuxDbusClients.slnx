@@ -4,4 +4,7 @@
     <Project Path="src/ModemManagerDbus/ModemManagerDbus.csproj" />
     <Project Path="src/NetworkManagerDbus/NetworkManagerDbus.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NetworkManagerDbus.Tests/NetworkManagerDbus.Tests.csproj" />
+  </Folder>
 </Solution>
