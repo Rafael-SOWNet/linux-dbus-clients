@@ -239,7 +239,11 @@ public sealed class NetworkManagerClient : IAsyncDisposable
                 var ssid = DecodeSsid(ssidBytes);
                 var strength = await SafeGet(ap, "Strength", (byte)0, cancellationToken);
                 var bssid = await SafeGet<string?>(ap, "HwAddress", null, cancellationToken);
-                var frequency = await SafeGet<uint?>(ap, "Frequency", null, cancellationToken);
+                // Read as the wire type ('u'). Tmds.DBus cannot read a property into uint?, so asking
+                // for one always threw, SafeGet swallowed it, and every access point came back with no
+                // frequency. NetworkManager reports 0 when it does not know, which maps to null.
+                var frequencyMhz = await SafeGet(ap, "Frequency", 0u, cancellationToken);
+                uint? frequency = frequencyMhz == 0 ? null : frequencyMhz;
                 var flags = await SafeGet<uint>(ap, "Flags", 0u, cancellationToken);
                 var wpaFlags = await SafeGet<uint>(ap, "WpaFlags", 0u, cancellationToken);
                 var rsnFlags = await SafeGet<uint>(ap, "RsnFlags", 0u, cancellationToken);
